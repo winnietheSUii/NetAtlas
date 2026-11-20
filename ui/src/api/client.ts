@@ -12,6 +12,7 @@ import type {
   ScanResponse,
   SiteListResponse,
   SiteSummary,
+  StatusSummaryResponse,
   TopologyResponse,
   VlanListResponse,
 } from "../types/network";
@@ -172,4 +173,14 @@ export function triggerScan(payload: ScanRequest): Promise<ScanResponse> {
 
 export function fetchScanJobs(limit = 50): Promise<ScanJobsResponse> {
   return requestJson<ScanJobsResponse>(`/scan/jobs?limit=${limit}`);
+}
+
+export function fetchStatusSummary(siteId = "local"): Promise<StatusSummaryResponse> {
+  return requestJson<StatusSummaryResponse>(`/status?site_id=${encodeURIComponent(siteId)}`);
+}
+
+export function triggerStatusPoll(): Promise<StatusSummaryResponse> {
+  return requestJson<StatusSummaryResponse>("/status/poll", {
+    method: "POST",
+  });
 }

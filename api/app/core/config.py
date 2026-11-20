@@ -23,6 +23,11 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://localhost:8080,http://localhost"
 
+    status_poll_enabled: bool = True
+    status_poll_interval_seconds: int = 30
+    status_poll_timeout_seconds: int = 2
+    status_poll_concurrency: int = 20
+
     @property
     def cors_origin_list(self) -> list[str]:
         origins = [item.strip() for item in self.cors_origins.split(",") if item.strip()]

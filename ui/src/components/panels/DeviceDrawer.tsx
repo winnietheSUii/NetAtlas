@@ -166,6 +166,9 @@ export function DeviceDrawer({
   if (!deviceIp) return null;
 
   const effectiveRole = topologyNode?.role ?? data?.device.role ?? "unknown";
+  const effectiveReachability =
+    data?.device.reachability ?? topologyNode?.reachability ?? "unknown";
+  const effectiveLatency = data?.device.latency_ms ?? topologyNode?.latency_ms ?? null;
   const isRoot = topologyNode?.is_root ?? false;
   const roleOverrideValue = topologyNode?.role_override ?? "";
 
@@ -249,6 +252,23 @@ export function DeviceDrawer({
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-[#57606a] dark:text-[#8b949e]">
               <span className="font-mono text-[#1f2328] dark:text-[#e6edf3]">
                 {deviceIp}
+              </span>
+              <span className="inline-flex items-center gap-1 font-mono text-[11px]">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    effectiveReachability === "up"
+                      ? "bg-[#1a7f37] dark:bg-[#3fb950]"
+                      : effectiveReachability === "degraded"
+                      ? "bg-[#bf8700] dark:bg-[#d29922]"
+                      : effectiveReachability === "down"
+                      ? "bg-[#cf222e] dark:bg-[#f85149]"
+                      : "bg-[#8c959f]"
+                  }`}
+                />
+                <span className="uppercase">{effectiveReachability}</span>
+                {effectiveReachability === "up" && effectiveLatency !== null && (
+                  <span>({effectiveLatency.toFixed(1)} ms)</span>
+                )}
               </span>
               {data?.device.vendor && (
                 <>

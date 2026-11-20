@@ -69,6 +69,20 @@ def _row_to_device_summary(row: dict[str, Any]) -> DeviceSummary:
     )
 
 
+async def _attach_status_to_devices(
+    devices: list[DeviceSummary], site_id: str
+) -> None:
+    from app.services.poller import status_poller
+
+    status_map = await status_poller.get_status_map(site_id)
+    for dev in devices:
+        rec = status_map.get(dev.ip)
+        if rec is not None:
+            dev.reachability = rec.status
+            dev.latency_ms = rec.latency_ms
+            dev.last_polled = rec.last_checked
+
+
 async def list_devices(
     search: str | None = None,
     vendor: str | None = None,
@@ -101,12 +115,15 @@ async def list_devices(
         if role:
             r_norm = role.strip().lower()
             devices = [d for d in devices if d.role.lower() == r_norm]
+        await _attach_status_to_devices(devices, site_id)
         return DeviceListResponse(devices=devices, total=len(devices), mode=mode_str)
 
     if settings.mock_mode:
         from app.services.mock_data import list_mock_devices
 
-        return list_mock_devices(search=search, vendor=vendor, role=role)
+        resp = list_mock_devices(search=search, vendor=vendor, role=role)
+        await _attach_status_to_devices(resp.devices, site_id)
+        return resp
 
     conditions: list[str] = []
     params: list[Any] = []
@@ -183,6 +200,7 @@ async def list_devices(
         role_norm = role.strip().lower()
         devices = [d for d in devices if d.role.lower() == role_norm]
 
+    await _attach_status_to_devices(devices, site_id)
     return DeviceListResponse(devices=devices, total=len(devices), mode="live")
 
 
@@ -221,6 +239,7 @@ async def get_device_ports(ip: str, site_id: str = "local") -> DevicePortsRespon
         result = get_mock_device_ports(normalized_ip)
         if result is None:
             raise HTTPException(status_code=404, detail=f"Device {normalized_ip} not found.")
+        await _attach_status_to_devices([result.device], site_id)
         return result
 
     device_row = await db.fetch_one(
@@ -374,6 +393,7 @@ async def get_device_ports(ip: str, site_id: str = "local") -> DevicePortsRespon
         )
 
     device = _row_to_device_summary(device_row)
+    await _attach_status_to_devices([device], site_id)
     return DevicePortsResponse(
         device=device,
         ports=ports,

@@ -468,8 +468,10 @@ async def get_topology(
 ) -> TopologyResponse:
     """Build normalized topology nodes and deduplicated edges for a site."""
     from app.services.control_plane import get_node_overrides, get_site_snapshot
+    from app.services.poller import status_poller
 
     overrides = await get_node_overrides(site_id)
+    status_map = await status_poller.get_status_map(site_id)
 
     if site_id != "local":
         snapshot = await get_site_snapshot(site_id)
@@ -552,6 +554,12 @@ async def get_topology(
 
         edges = deduplicate_links(filtered_links, node_tiers, managed_ips=managed_ips)
         nodes, edges = apply_graph_hierarchy(nodes, edges, overrides)
+        for node in nodes:
+            rec = status_map.get(node.ip)
+            if rec is not None:
+                node.reachability = rec.status
+                node.latency_ms = rec.latency_ms
+                node.last_polled = rec.last_checked
 
         vendor_counts: dict[str, int] = defaultdict(int)
         role_counts: dict[str, int] = defaultdict(int)
@@ -581,6 +589,12 @@ async def get_topology(
 
         topo = build_mock_topology(include_unmanaged=include_unmanaged)
         nodes, edges = apply_graph_hierarchy(topo.nodes, topo.edges, overrides)
+        for node in nodes:
+            rec = status_map.get(node.ip)
+            if rec is not None:
+                node.reachability = rec.status
+                node.latency_ms = rec.latency_ms
+                node.last_polled = rec.last_checked
         role_counts_mock: dict[str, int] = defaultdict(int)
         for n in nodes:
             role_counts_mock[n.role] += 1
@@ -725,6 +739,12 @@ async def get_topology(
 
     edges = deduplicate_links(filtered_links, node_tiers, managed_ips=managed_ips)
     nodes, edges = apply_graph_hierarchy(nodes, edges, overrides)
+    for node in nodes:
+        rec = status_map.get(node.ip)
+        if rec is not None:
+            node.reachability = rec.status
+            node.latency_ms = rec.latency_ms
+            node.last_polled = rec.last_checked
 
     for n in nodes:
         role_counts[n.role] += 1

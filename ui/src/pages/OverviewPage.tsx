@@ -1,4 +1,5 @@
 import {
+  Activity,
   ArrowRight,
   Cable,
   Layers,
@@ -12,6 +13,7 @@ import type { ActiveTab } from "../components/layout/AppShell";
 import type {
   DeviceRole,
   ScanJob,
+  StatusSummaryResponse,
   TopologyResponse,
   VlanSummary,
 } from "../types/network";
@@ -20,10 +22,20 @@ import { getRoleMeta } from "../utils/roleStyles";
 interface OverviewPageProps {
   topology: TopologyResponse | null;
   vlans: VlanSummary[];
+  statusSummary: StatusSummaryResponse | null;
+  pollingNow: boolean;
+  onPingNow: () => void;
   onNavigate: (tab: ActiveTab) => void;
 }
 
-export function OverviewPage({ topology, vlans, onNavigate }: OverviewPageProps) {
+export function OverviewPage({
+  topology,
+  vlans,
+  statusSummary,
+  pollingNow,
+  onPingNow,
+  onNavigate,
+}: OverviewPageProps) {
   const [recentJobs, setRecentJobs] = useState<ScanJob[]>([]);
 
   useEffect(() => {
@@ -95,6 +107,44 @@ export function OverviewPage({ topology, vlans, onNavigate }: OverviewPageProps)
               {vlans.length}
             </div>
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[#d0d7de] bg-white px-4 py-2.5 text-xs dark:border-[#30363d] dark:bg-[#161b22]">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="font-semibold text-[#57606a] dark:text-[#8b949e]">
+              Live Reachability:
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <span className="h-2 w-2 rounded-full bg-[#1a7f37] dark:bg-[#3fb950]" />
+              Up: <strong>{statusSummary?.up ?? 0}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <span className="h-2 w-2 rounded-full bg-[#bf8700] dark:bg-[#d29922]" />
+              Degraded: <strong>{statusSummary?.degraded ?? 0}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <span className="h-2 w-2 rounded-full bg-[#cf222e] dark:bg-[#f85149]" />
+              Down: <strong>{statusSummary?.down ?? 0}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono text-[11px] text-[#57606a] dark:text-[#8b949e]">
+              ICMP Poller:{" "}
+              {statusSummary?.enabled
+                ? `Every ${statusSummary.interval_seconds}s`
+                : "Disabled"}
+            </span>
+            <button
+              type="button"
+              onClick={onPingNow}
+              disabled={pollingNow}
+              className="inline-flex items-center gap-1 rounded border border-[#d0d7de] bg-[#f6f8fa] px-2.5 py-1 text-[11px] font-medium hover:bg-[#eaeef2] disabled:opacity-50 dark:border-[#30363d] dark:bg-[#0d1117] dark:hover:bg-[#21262d]"
+            >
+              <Activity className={`h-3 w-3 ${pollingNow ? "animate-pulse text-[#0969da]" : ""}`} />
+              <span>{pollingNow ? "Polling..." : "Ping Now"}</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

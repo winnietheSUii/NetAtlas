@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import db
-from app.routers import control_plane, devices, health, network_views, scan, topology
+from app.routers import control_plane, devices, health, network_views, scan, status, topology
+from app.services.poller import status_poller
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,11 +18,13 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Manage PostgreSQL connection pool lifecycle."""
+    """Manage PostgreSQL connection pool and background poller lifecycles."""
     await db.startup()
+    status_poller.start()
     try:
         yield
     finally:
+        await status_poller.stop()
         await db.shutdown()
 
 
@@ -45,4 +48,5 @@ app.include_router(topology.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
 app.include_router(network_views.router, prefix="/api")
 app.include_router(control_plane.router, prefix="/api")
+app.include_router(status.router, prefix="/api")
 app.include_router(scan.router, prefix="/api")

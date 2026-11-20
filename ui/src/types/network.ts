@@ -10,6 +10,7 @@ export type DeviceRole =
   | "unknown";
 
 export type ScanAction = "discover" | "macsuck" | "arpnip";
+export type ReachabilityStatus = "up" | "degraded" | "down" | "unknown";
 export type LayoutDirection = "TB" | "LR";
 export type EdgeStyle = "straight" | "step";
 export type TopologyViewMode = "l2" | "l3";
@@ -46,6 +47,9 @@ export interface DeviceSummary {
   last_discover: string | null;
   last_macsuck: string | null;
   last_arpnip: string | null;
+  reachability: ReachabilityStatus;
+  latency_ms: number | null;
+  last_polled: string | null;
 }
 
 export interface DeviceListResponse {
@@ -74,6 +78,9 @@ export interface TopologyNodeItem {
   role_override: DeviceRole | null;
   pos_x: number | null;
   pos_y: number | null;
+  reachability: ReachabilityStatus;
+  latency_ms: number | null;
+  last_polled: string | null;
 }
 
 export interface TopologyEdgeItem {
@@ -278,6 +285,28 @@ export interface ScanResponse {
 export interface ScanJobsResponse {
   jobs: ScanJob[];
   total: number;
+  mode: "mock" | "live";
+}
+
+export interface DeviceStatusRecord {
+  ip: string;
+  status: ReachabilityStatus;
+  latency_ms: number | null;
+  consecutive_failures: number;
+  last_checked: string | null;
+  last_up: string | null;
+}
+
+export interface StatusSummaryResponse {
+  enabled: boolean;
+  interval_seconds: number;
+  last_cycle_at: string | null;
+  total: number;
+  up: number;
+  degraded: number;
+  down: number;
+  unknown: number;
+  devices: DeviceStatusRecord[];
   mode: "mock" | "live";
 }
 

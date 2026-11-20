@@ -70,15 +70,13 @@ arpnip_min_age: 0
 # ------------------------------------------------------------------------------
 schedule:
   discoverall:
-    when: '5 0 * * *'
+    when: '5 */2 * * *'
   macwalk:
-    when:
-      min: 20
+    when: '*/15 * * * *'
   arpwalk:
-    when:
-      min: 50
+    when: '5,20,35,50 * * * *'
   nbtwalk:
-    when: '0 8,13,21 * * *'
+    when: '0 */6 * * *'
   expire:
     when: '30 23 * * *'
 

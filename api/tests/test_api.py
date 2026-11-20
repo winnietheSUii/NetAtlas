@@ -363,3 +363,33 @@ def test_multi_site_agent_registration_and_ingest() -> None:
     bkk_agent = next(a for a in agents if a["agent_id"] == agent_id)
     assert bkk_agent["status"] == "online"
     assert bkk_agent["device_count"] == 2
+
+
+def test_poller_helpers_and_status_endpoints() -> None:
+    from app.services.poller import compute_next_status, parse_ping_latency_ms
+
+    assert parse_ping_latency_ms("64 bytes from 10.10.0.1: icmp_seq=1 ttl=64 time=1.42 ms") == 1.42
+    assert parse_ping_latency_ms("64 bytes from 10.10.0.1: icmp_seq=1 ttl=64 time<1 ms") == 1.0
+    assert parse_ping_latency_ms("") is None
+
+    assert compute_next_status(None, 0, True) == ("up", 0)
+    assert compute_next_status("up", 0, False) == ("degraded", 1)
+    assert compute_next_status("degraded", 1, False) == ("down", 2)
+    assert compute_next_status("down", 2, True) == ("up", 0)
+
+    poll_resp = client.post("/api/status/poll")
+    assert poll_resp.status_code == 200
+    poll_data = poll_resp.json()
+    assert poll_data["mode"] == "mock"
+    assert poll_data["total"] == 10
+    assert poll_data["up"] == 10
+
+    status_resp = client.get("/api/status")
+    assert status_resp.status_code == 200
+    assert status_resp.json()["up"] == 10
+
+    topo = client.get("/api/topology").json()
+    assert all(n["reachability"] == "up" and n["latency_ms"] is not None for n in topo["nodes"])
+
+    devs = client.get("/api/devices").json()["devices"]
+    assert all(d["reachability"] == "up" and d["latency_ms"] is not None for d in devs)

@@ -35,6 +35,11 @@ interface AppShellProps {
   health: HealthResponse | null;
   theme: ThemeMode;
   onToggleTheme: () => void;
+  autoRefreshSec: number;
+  onAutoRefreshChange: (sec: number) => void;
+  pollingNow: boolean;
+  onPingNow: () => void;
+  lastUpdatedAt: Date | null;
   children: ReactNode;
 }
 
@@ -80,6 +85,11 @@ export function AppShell({
   health,
   theme,
   onToggleTheme,
+  autoRefreshSec,
+  onAutoRefreshChange,
+  pollingNow,
+  onPingNow,
+  lastUpdatedAt,
   children,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -213,10 +223,41 @@ export function AppShell({
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {lastUpdatedAt && (
+              <span className="hidden font-mono text-[11px] text-[#57606a] dark:text-[#8b949e] lg:inline">
+                {lastUpdatedAt.toLocaleTimeString()}
+              </span>
+            )}
+
+            <select
+              value={autoRefreshSec}
+              onChange={(e) => onAutoRefreshChange(Number(e.target.value))}
+              className="rounded border border-[#d0d7de] bg-[#f6f8fa] px-2 py-1 text-[11px] font-medium text-[#1f2328] focus:outline-none dark:border-[#30363d] dark:bg-[#0d1117] dark:text-[#e6edf3]"
+              title="UI Auto-Refresh Interval"
+            >
+              <option value={0}>Auto: Off</option>
+              <option value={15}>Auto: 15s</option>
+              <option value={30}>Auto: 30s</option>
+              <option value={60}>Auto: 60s</option>
+            </select>
+
+            {activeSiteId === "local" && (
+              <button
+                type="button"
+                onClick={onPingNow}
+                disabled={pollingNow}
+                className="hidden items-center gap-1 rounded border border-[#d0d7de] bg-white px-2.5 py-1 text-[11px] font-medium text-[#1f2328] hover:bg-[#f6f8fa] disabled:opacity-50 dark:border-[#30363d] dark:bg-[#0d1117] dark:text-[#e6edf3] dark:hover:bg-[#21262d] sm:inline-flex"
+                title="Run immediate ICMP reachability check"
+              >
+                <Activity className={`h-3 w-3 ${pollingNow ? "animate-pulse text-[#0969da]" : ""}`} />
+                <span>{pollingNow ? "Pinging..." : "Ping Now"}</span>
+              </button>
+            )}
+
             {health && (
               <div
-                className={`hidden items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-medium sm:flex ${
+                className={`hidden items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-medium md:flex ${
                   isMock
                     ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                     : isHealthy

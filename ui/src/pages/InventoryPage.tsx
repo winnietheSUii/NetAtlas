@@ -178,6 +178,7 @@ export function InventoryPage({
                       Management IP <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </th>
+                  <th className="px-3.5 py-2.5">Status / RTT</th>
                   <th className="px-3.5 py-2.5">
                     <button
                       type="button"
@@ -221,7 +222,7 @@ export function InventoryPage({
               <tbody className="divide-y divide-[#d0d7de] dark:divide-[#30363d]">
                 {filteredDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-[#57606a]">
+                    <td colSpan={9} className="px-4 py-10 text-center text-[#57606a]">
                       No devices found in this site.
                     </td>
                   </tr>
@@ -253,6 +254,28 @@ export function InventoryPage({
 
                         <td className="px-3.5 py-2.5 font-mono font-medium">
                           {device.ip}
+                        </td>
+
+                        <td className="px-3.5 py-2.5 font-mono text-[11px]">
+                          <div className="inline-flex items-center gap-1.5">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                device.reachability === "up"
+                                  ? "bg-[#1a7f37] dark:bg-[#3fb950]"
+                                  : device.reachability === "degraded"
+                                  ? "bg-[#bf8700] dark:bg-[#d29922]"
+                                  : device.reachability === "down"
+                                  ? "bg-[#cf222e] dark:bg-[#f85149]"
+                                  : "bg-[#8c959f]"
+                              }`}
+                            />
+                            <span className="capitalize">{device.reachability}</span>
+                            {device.reachability === "up" && device.latency_ms !== null && (
+                              <span className="text-[#57606a] dark:text-[#8b949e]">
+                                ({device.latency_ms.toFixed(1)} ms)
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="px-3.5 py-2.5">

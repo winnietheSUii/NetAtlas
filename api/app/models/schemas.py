@@ -16,6 +16,7 @@ DeviceRole = Literal[
 ]
 
 ScanAction = Literal["discover", "macsuck", "arpnip"]
+ReachabilityStatus = Literal["up", "degraded", "down", "unknown"]
 
 _SITE_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,48}$")
 
@@ -52,6 +53,9 @@ class DeviceSummary(BaseModel):
     last_discover: datetime | None = None
     last_macsuck: datetime | None = None
     last_arpnip: datetime | None = None
+    reachability: ReachabilityStatus = "unknown"
+    latency_ms: float | None = None
+    last_polled: datetime | None = None
 
 
 class DeviceListResponse(BaseModel):
@@ -80,6 +84,9 @@ class TopologyNode(BaseModel):
     role_override: DeviceRole | None = None
     pos_x: float | None = None
     pos_y: float | None = None
+    reachability: ReachabilityStatus = "unknown"
+    latency_ms: float | None = None
+    last_polled: datetime | None = None
 
 
 class TopologyEdge(BaseModel):
@@ -364,4 +371,26 @@ class ScanResponse(BaseModel):
 class ScanJobsResponse(BaseModel):
     jobs: list[ScanJob]
     total: int
+    mode: Literal["mock", "live"]
+
+
+class DeviceStatusRecord(BaseModel):
+    ip: str
+    status: ReachabilityStatus
+    latency_ms: float | None = None
+    consecutive_failures: int = 0
+    last_checked: datetime | None = None
+    last_up: datetime | None = None
+
+
+class StatusSummaryResponse(BaseModel):
+    enabled: bool
+    interval_seconds: int
+    last_cycle_at: datetime | None = None
+    total: int
+    up: int
+    degraded: int
+    down: int
+    unknown: int
+    devices: list[DeviceStatusRecord]
     mode: Literal["mock", "live"]

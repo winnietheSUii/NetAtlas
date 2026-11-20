@@ -58,6 +58,19 @@ _NETATLAS_DDL: tuple[str, ...] = (
     );
     """,
     """
+    CREATE TABLE IF NOT EXISTS netatlas.device_status (
+        site_id TEXT NOT NULL DEFAULT 'local',
+        ip TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'unknown',
+        latency_ms DOUBLE PRECISION,
+        consecutive_failures INTEGER NOT NULL DEFAULT 0,
+        last_checked TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_up TIMESTAMPTZ,
+        last_change TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (site_id, ip)
+    );
+    """,
+    """
     INSERT INTO netatlas.sites (site_id, name, description, is_local)
     VALUES ('local', 'Local Site', 'Primary Netdisco discovery engine', TRUE)
     ON CONFLICT (site_id) DO NOTHING;

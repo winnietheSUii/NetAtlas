@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import {
   fetchHealth,
   fetchSites,
+  fetchStatusSummary,
   fetchTopology,
   fetchVlans,
   resetTopologyLayout,
   saveTopologyLayout,
+  triggerStatusPoll,
 } from "./api/client";
 import { AppShell, type ActiveTab } from "./components/layout/AppShell";
 import { DeviceDrawer } from "./components/panels/DeviceDrawer";
@@ -21,9 +23,25 @@ import type {
   HealthResponse,
   NodePositionItem,
   SiteSummary,
+  StatusSummaryResponse,
   TopologyResponse,
   VlanSummary,
 } from "./types/network";
+
+const REFRESH_STORAGE_KEY = "netatlas-refresh-sec";
+
+function getInitialRefreshSec(): number {
+  try {
+    const raw = localStorage.getItem(REFRESH_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = Number(raw);
+      if ([0, 15, 30, 60].includes(parsed)) return parsed;
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+  return 30;
+}
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
@@ -33,11 +51,15 @@ export default function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [topology, setTopology] = useState<TopologyResponse | null>(null);
   const [vlans, setVlans] = useState<VlanSummary[]>([]);
+  const [statusSummary, setStatusSummary] = useState<StatusSummaryResponse | null>(null);
   const [topoLoading, setTopoLoading] = useState(false);
   const [topoError, setTopoError] = useState<string | null>(null);
   const [selectedDeviceIp, setSelectedDeviceIp] = useState<string | null>(null);
   const [focusDeviceIp, setFocusDeviceIp] = useState<string | null>(null);
   const [refreshSignal, setRefreshSignal] = useState(0);
+  const [autoRefreshSec, setAutoRefreshSec] = useState<number>(getInitialRefreshSec);
+  const [pollingNow, setPollingNow] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const loadSites = useCallback(async () => {
     try {
@@ -48,32 +70,73 @@ export default function App() {
     }
   }, []);
 
-  const loadSiteData = useCallback(async () => {
-    setTopoLoading(true);
-    setTopoError(null);
-    try {
-      const [healthData, topoData, vlanData, sitesData] = await Promise.all([
-        fetchHealth(),
-        fetchTopology(true, activeSiteId),
-        fetchVlans(activeSiteId),
-        fetchSites(),
-      ]);
-      setHealth(healthData);
-      setTopology(topoData);
-      setVlans(vlanData.vlans);
-      setSites(sitesData.sites);
-    } catch (err) {
-      setTopoError(
-        err instanceof Error ? err.message : "Failed to reach NetAtlas API"
-      );
-    } finally {
-      setTopoLoading(false);
-    }
-  }, [activeSiteId]);
+  const loadSiteData = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setTopoLoading(true);
+      }
+      setTopoError(null);
+      try {
+        const [healthData, topoData, vlanData, sitesData, statusData] =
+          await Promise.all([
+            fetchHealth(),
+            fetchTopology(true, activeSiteId),
+            fetchVlans(activeSiteId),
+            fetchSites(),
+            fetchStatusSummary(activeSiteId),
+          ]);
+        setHealth(healthData);
+        setTopology(topoData);
+        setVlans(vlanData.vlans);
+        setSites(sitesData.sites);
+        setStatusSummary(statusData);
+        setLastUpdatedAt(new Date());
+      } catch (err) {
+        setTopoError(
+          err instanceof Error ? err.message : "Failed to reach NetAtlas API"
+        );
+      } finally {
+        if (!silent) {
+          setTopoLoading(false);
+        }
+      }
+    },
+    [activeSiteId]
+  );
 
   useEffect(() => {
-    void loadSiteData();
+    void loadSiteData(false);
   }, [loadSiteData, refreshSignal]);
+
+  useEffect(() => {
+    if (autoRefreshSec <= 0) return;
+    const timer = window.setInterval(() => {
+      void loadSiteData(true);
+      setRefreshSignal((prev) => prev + 1);
+    }, autoRefreshSec * 1000);
+    return () => window.clearInterval(timer);
+  }, [autoRefreshSec, loadSiteData]);
+
+  const handleAutoRefreshChange = (sec: number) => {
+    setAutoRefreshSec(sec);
+    try {
+      localStorage.setItem(REFRESH_STORAGE_KEY, String(sec));
+    } catch {
+      // Ignore storage error
+    }
+  };
+
+  const handlePingNow = async () => {
+    setPollingNow(true);
+    try {
+      const summary = await triggerStatusPoll();
+      setStatusSummary(summary);
+      await loadSiteData(true);
+      setRefreshSignal((prev) => prev + 1);
+    } finally {
+      setPollingNow(false);
+    }
+  };
 
   const handleSiteChange = (siteId: string) => {
     setSelectedDeviceIp(null);
@@ -110,11 +173,19 @@ export default function App() {
       health={health}
       theme={theme}
       onToggleTheme={toggleTheme}
+      autoRefreshSec={autoRefreshSec}
+      onAutoRefreshChange={handleAutoRefreshChange}
+      pollingNow={pollingNow}
+      onPingNow={() => void handlePingNow()}
+      lastUpdatedAt={lastUpdatedAt}
     >
       {activeTab === "overview" && (
         <OverviewPage
           topology={topology}
           vlans={vlans}
+          statusSummary={statusSummary}
+          pollingNow={pollingNow}
+          onPingNow={() => void handlePingNow()}
           onNavigate={setActiveTab}
         />
       )}
@@ -128,7 +199,7 @@ export default function App() {
           selectedDeviceIp={selectedDeviceIp}
           focusDeviceIp={focusDeviceIp}
           onSelectDevice={setSelectedDeviceIp}
-          onRefresh={() => void loadSiteData()}
+          onRefresh={() => void loadSiteData(false)}
           onSaveLayout={handleSaveLayout}
           onResetLayout={handleResetLayout}
           onFocusHandled={() => setFocusDeviceIp(null)}
@@ -157,7 +228,7 @@ export default function App() {
         <VlansPage
           vlans={vlans}
           loading={topoLoading}
-          onRefresh={() => void loadSiteData()}
+          onRefresh={() => void loadSiteData(false)}
           onSelectDevice={setSelectedDeviceIp}
         />
       )}

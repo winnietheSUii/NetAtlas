@@ -98,12 +98,16 @@ services:
       - ./api/app:/app/app
     environment:
       MOCK_MODE: ${MOCK_MODE:-true}
+      STATUS_POLL_ENABLED: ${STATUS_POLL_ENABLED:-true}
+      STATUS_POLL_INTERVAL_SECONDS: ${STATUS_POLL_INTERVAL_SECONDS:-30}
       NETDISCO_DB_HOST: ${NETDISCO_DB_HOST:-netdisco-postgresql}
       NETDISCO_DB_PORT: ${NETDISCO_DB_PORT:-5432}
       NETDISCO_DB_NAME: ${NETDISCO_DB_NAME:-netdisco}
       NETDISCO_DB_USER: ${NETDISCO_DB_USER:-netdisco}
       NETDISCO_DB_PASS: ${NETDISCO_DB_PASS:-netatlas_dev_password}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080,http://localhost}
+    cap_add:
+      - NET_RAW
     networks:
       - netatlas-net
 
