@@ -1,0 +1,98 @@
+# ==============================================================================
+# NetAtlas Remote Site Collector Stack (Hub & Spoke Spoke-Side Deployment)
+# Deploy on a branch site or isolated VRF. Only outbound HTTPS to CENTRAL_URL
+# is required; no inbound firewall rules need to be opened on this site.
+# ==============================================================================
+
+x-netdisco-env: &netdisco-env
+  NETDISCO_DOMAIN: ${NETDISCO_DOMAIN:-discover}
+  NETDISCO_RO_COMMUNITY: ${NETDISCO_RO_COMMUNITY:-public}
+  NETDISCO_CURRENT_PG_VERSION: ${NETDISCO_CURRENT_PG_VERSION:-18}
+  NETDISCO_DB_NAME: ${NETDISCO_DB_NAME:-netdisco}
+  NETDISCO_DB_HOST: netdisco-postgresql
+  NETDISCO_DB_PORT: 5432
+  NETDISCO_DB_USER: ${NETDISCO_DB_USER:-netdisco}
+  NETDISCO_DB_PASS: ${NETDISCO_DB_PASS:-netatlas_site_password}
+  NETDISCO_DB_SUPERUSER: postgres
+
+services:
+  netdisco-postgresql:
+    image: netdisco/netdisco:latest-postgresql
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+      <<: *netdisco-env
+    volumes:
+      - site-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks:
+      - site-net
+
+  netdisco-db-init:
+    image: netdisco/netdisco:latest-backend
+    entrypoint: ""
+    command:
+      - /bin/sh
+      - -c
+      - /home/netdisco/bin/netdisco-env /home/netdisco/bin/netdisco-updatedb.sh
+    user: postgres
+    depends_on:
+      netdisco-postgresql:
+        condition: service_healthy
+    environment:
+      <<: *netdisco-env
+      DEPLOY_ADMIN_USER: "YES"
+    volumes:
+      - site-pgdata:/var/lib/pgversions/new
+      - ../netdisco/config:/home/netdisco/environments
+    networks:
+      - site-net
+
+  netdisco-backend:
+    image: netdisco/netdisco:latest-backend
+    restart: unless-stopped
+    init: true
+    depends_on:
+      netdisco-db-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *netdisco-env
+    volumes:
+      - ../netdisco/config:/home/netdisco/environments
+      - ../netdisco/logs:/home/netdisco/logs
+      - ../netdisco/nd-site-local:/home/netdisco/nd-site-local
+    networks:
+      - site-net
+
+  netatlas-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      netdisco-db-init:
+        condition: service_completed_successfully
+    environment:
+      CENTRAL_URL: ${CENTRAL_URL:?Set CENTRAL_URL e.g. https://netatlas.corp.local}
+      SITE_ID: ${SITE_ID:?Set SITE_ID registered in Central NetAtlas}
+      AGENT_ID: ${AGENT_ID:?Set AGENT_ID from Agents page}
+      AGENT_TOKEN: ${AGENT_TOKEN:?Set AGENT_TOKEN from Agents page}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
+      NETDISCO_DB_HOST: netdisco-postgresql
+      NETDISCO_DB_PORT: 5432
+      NETDISCO_DB_NAME: ${NETDISCO_DB_NAME:-netdisco}
+      NETDISCO_DB_USER: ${NETDISCO_DB_USER:-netdisco}
+      NETDISCO_DB_PASS: ${NETDISCO_DB_PASS:-netatlas_site_password}
+    networks:
+      - site-net
+
+networks:
+  site-net:
+    driver: bridge
+
+volumes:
+  site-pgdata: {}

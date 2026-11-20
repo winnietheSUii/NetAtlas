@@ -1,0 +1,48 @@
+services:
+  netdisco-postgresql:
+    restart: unless-stopped
+    ports: !reset []
+
+  netdisco-backend:
+    restart: unless-stopped
+
+  api:
+    restart: unless-stopped
+    ports: !reset []
+    volumes: !reset []
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --workers
+      - "2"
+    environment:
+      MOCK_MODE: ${MOCK_MODE:-false}
+    depends_on:
+      netdisco-db-init:
+        condition: service_completed_successfully
+
+  ui:
+    restart: unless-stopped
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      target: prod
+    ports: !reset []
+    volumes: !reset []
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - ui
+    networks:
+      - netatlas-net

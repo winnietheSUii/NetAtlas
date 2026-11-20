@@ -1,0 +1,132 @@
+x-netdisco-env: &netdisco-env
+  NETDISCO_DOMAIN: ${NETDISCO_DOMAIN:-discover}
+  NETDISCO_RO_COMMUNITY: ${NETDISCO_RO_COMMUNITY:-public}
+  NETDISCO_CURRENT_PG_VERSION: ${NETDISCO_CURRENT_PG_VERSION:-18}
+  NETDISCO_DB_NAME: ${NETDISCO_DB_NAME:-netdisco}
+  NETDISCO_DB_HOST: ${NETDISCO_DB_HOST:-netdisco-postgresql}
+  NETDISCO_DB_PORT: ${NETDISCO_DB_PORT:-5432}
+  NETDISCO_DB_USER: ${NETDISCO_DB_USER:-netdisco}
+  NETDISCO_DB_PASS: ${NETDISCO_DB_PASS:-netatlas_dev_password}
+  NETDISCO_DB_SUPERUSER: postgres
+
+services:
+  netdisco-postgresql:
+    image: netdisco/netdisco:latest-postgresql
+    shm_size: 128mb
+    environment:
+      <<: *netdisco-env
+    volumes:
+      - netdisco-pgdata:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks:
+      - netatlas-net
+
+  netdisco-db-init:
+    image: netdisco/netdisco:latest-backend
+    entrypoint: ""
+    command:
+      - /bin/sh
+      - -c
+      - /home/netdisco/bin/netdisco-env /home/netdisco/bin/netdisco-updatedb.sh
+    user: postgres
+    depends_on:
+      netdisco-postgresql:
+        condition: service_healthy
+    environment:
+      <<: *netdisco-env
+      DEPLOY_ADMIN_USER: ${DEPLOY_ADMIN_USER:-YES}
+      NETDISCO_ADMIN_USER: ${NETDISCO_ADMIN_USER:-guest}
+    volumes:
+      - netdisco-pgdata:/var/lib/pgversions/new
+      - ./netdisco/config:/home/netdisco/environments
+    networks:
+      - netatlas-net
+
+  netdisco-backend:
+    image: netdisco/netdisco:latest-backend
+    init: true
+    depends_on:
+      netdisco-db-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *netdisco-env
+    volumes:
+      - ./netdisco/config:/home/netdisco/environments
+      - ./netdisco/logs:/home/netdisco/logs
+      - ./netdisco/nd-site-local:/home/netdisco/nd-site-local
+    networks:
+      - netatlas-net
+
+  netdisco-web:
+    image: netdisco/netdisco:latest-web
+    profiles:
+      - dev
+    depends_on:
+      netdisco-db-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *netdisco-env
+    ports:
+      - "${NETDISCO_WEB_PORT:-5000}:5000"
+    volumes:
+      - ./netdisco/config:/home/netdisco/environments:ro
+      - ./netdisco/nd-site-local:/home/netdisco/nd-site-local:ro
+    networks:
+      - netatlas-net
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./api/app:/app/app
+    environment:
+      MOCK_MODE: ${MOCK_MODE:-true}
+      NETDISCO_DB_HOST: ${NETDISCO_DB_HOST:-netdisco-postgresql}
+      NETDISCO_DB_PORT: ${NETDISCO_DB_PORT:-5432}
+      NETDISCO_DB_NAME: ${NETDISCO_DB_NAME:-netdisco}
+      NETDISCO_DB_USER: ${NETDISCO_DB_USER:-netdisco}
+      NETDISCO_DB_PASS: ${NETDISCO_DB_PASS:-netatlas_dev_password}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080,http://localhost}
+    networks:
+      - netatlas-net
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "${UI_PORT:-5173}:5173"
+    volumes:
+      - ./ui/src:/app/src
+      - ./ui/index.html:/app/index.html
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    depends_on:
+      - api
+    networks:
+      - netatlas-net
+
+networks:
+  netatlas-net:
+    driver: bridge
+
+volumes:
+  netdisco-pgdata: {}

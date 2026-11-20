@@ -1,0 +1,85 @@
+# ==============================================================================
+# NetAtlas — Netdisco Headless Discovery Engine Configuration
+# ==============================================================================
+# IMPORTANT: Database connection parameters (host, port, name, user, pass) are
+# injected automatically at runtime via NETDISCO_DB_* environment variables
+# through `/home/netdisco/bin/netdisco-env`. Keep the `database:` block below
+# commented out so credentials remain synchronized with `.env`.
+#
+# database:
+#   name: 'netdisco'
+#   user: 'netdisco'
+#   pass: 'netatlas_dev_password'
+#   host: 'netdisco-postgresql'
+#   port: 5432
+
+# ------------------------------------------------------------------------------
+# Device Authentication (SNMPv3 & SNMPv2c)
+# ------------------------------------------------------------------------------
+# Netdisco evaluates entries in order. Scope credentials to customer management
+# subnets with `only:` when working across multi-tenant or segmented sites.
+#
+# NOTE FOR CISCO IOS / IOS-XE / NX-OS WITH SNMPv3:
+#   Ensure per-VLAN SNMP contexts are permitted so `macsuck` can query per-VLAN
+#   CAM/FDB tables:
+#     snmp-server group NETATLAS_GRP v3 priv context vlan- match prefix
+device_auth:
+  # --- SNMPv3 AuthPriv Template (Recommended for Enterprise Sites) ------------
+  # - tag: 'enterprise-snmpv3-authpriv'
+  #   user: 'netatlas_snmpv3'
+  #   read: true
+  #   write: false
+  #   only:
+  #     - '10.0.0.0/8'
+  #     - '172.16.0.0/12'
+  #   auth:
+  #     proto: 'SHA'        # MD5 | SHA | SHA-256 | SHA-512 (depends on net-snmp)
+  #     pass: 'CHANGE_ME_AUTH_PASSWORD'
+  #   priv:
+  #     proto: 'AES'        # DES | AES | AES-192 | AES-256
+  #     pass: 'CHANGE_ME_PRIV_PASSWORD'
+
+  # --- SNMPv2c Read-Only Fallback / Lab Template ------------------------------
+  - tag: 'default-v2c-ro'
+    community: 'scanopy_ro'
+    read: true
+    write: false
+
+# ------------------------------------------------------------------------------
+# High-Worker Tuning for Large Customer Sites
+# ------------------------------------------------------------------------------
+workers:
+  tasks: 'AUTO * 4'       # Scale parallel SNMP workers across CPU cores
+  timeout: 600            # Allow large core/chassis SNMP walks to finish
+  sleep_time: 2           # Poll admin job queue every 2s for responsive UI scans
+
+# ------------------------------------------------------------------------------
+# Discovery & Polling Behavior
+# ------------------------------------------------------------------------------
+discover_neighbors: true
+discover_routed_neighbors: true
+discover_waps: true
+discover_phones: false
+
+macsuck_all_vlans: false
+macsuck_no_unnamed: false
+arpnip_min_age: 0
+
+# ------------------------------------------------------------------------------
+# Automated Background Polling Schedule
+# ------------------------------------------------------------------------------
+schedule:
+  discoverall:
+    when: '5 0 * * *'
+  macwalk:
+    when:
+      min: 20
+  arpwalk:
+    when:
+      min: 50
+  nbtwalk:
+    when: '0 8,13,21 * * *'
+  expire:
+    when: '30 23 * * *'
+
+no_auth: true
